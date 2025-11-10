@@ -3,14 +3,17 @@ package cache_memory_simulator;
 public class CacheLine {
     private int tag;
     private boolean valid;
-    private String data;
+    private String[] data;
     private int lineIndex;
 
-    public CacheLine(int lineIndex) {
+    public CacheLine(int lineIndex,int blockSize) {
         this.valid = false;
         this.tag = -1;
-        this.data = "";
+        this.data = new String[blockSize];
         this.lineIndex = lineIndex;
+        for(int i=0; i<blockSize; i++) {
+            this.data[i] = "";
+        }
     }
     // Getters and setters
     public int getTag(){
@@ -27,14 +30,19 @@ public class CacheLine {
         this.valid = valid;
     }
 
-    public String getData(){
+    public String[] getData(){
         return data;
     }
-    public void setData(String data){
+    public void setData(String[] data){
         this.data = data;
     }
 
     public int getLineIndex() {
         return lineIndex;
+    }
+
+    public String getDataAsString() {
+        if(data == null) return "";
+        return String.join(", ", data); // join array elements as a comma-separated string
     }
 }

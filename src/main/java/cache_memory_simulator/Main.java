@@ -12,7 +12,7 @@ public class Main extends Application {
     public void start(Stage stage) throws IOException {
         FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("main.fxml"));
         Scene scene = new Scene(fxmlLoader.load());
-        stage.setTitle("Cache Simulator");
+        stage.setTitle("DirectMappedCache Simulator");
         stage.setScene(scene);
         stage.show();
     }
