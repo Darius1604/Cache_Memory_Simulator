@@ -8,35 +8,58 @@ import javafx.scene.control.*;
 
 public class Controller {
 
-    @FXML private TextField cacheSizeField;
-    @FXML private TextField blockSizeField;
-    @FXML private TextField addressField;
-    @FXML private TextField writeDataField;
-    @FXML private Label hitLabel;
-    @FXML private Label missLabel;
-    @FXML private Label hitRatioLabel;
+    @FXML
+    private TextField cacheSizeField;
+    @FXML
+    private TextField blockSizeField;
+    @FXML
+    private TextField addressField;
+    @FXML
+    private TextField writeDataField;
+    @FXML
+    private Label hitLabel;
+    @FXML
+    private Label missLabel;
+    @FXML
+    private Label hitRatioLabel;
+    @FXML
+    private Slider kSlider;
 
-    @FXML private TextArea logArea;
+    @FXML
+    private Label kLabel;
 
-    @FXML private TableView<CacheLine> cacheTable;
-    @FXML private TableView<MemoryCell> memoryTable;
+    @FXML
+    private TextArea logArea;
 
-    @FXML private RadioButton directMappedRadio;
-    @FXML private RadioButton setAssociativeRadio;
-    @FXML private RadioButton fullyAssociativeRadio;
+    @FXML
+    private TableView<CacheLine> cacheTable;
+    @FXML
+    private TableView<MemoryCell> memoryTable;
+
+    @FXML
+    private RadioButton directMappedRadio;
+    @FXML
+    private RadioButton setAssociativeRadio;
+    @FXML
+    private RadioButton fullyAssociativeRadio;
     private ToggleGroup cacheTypeGroup;
 
-    @FXML private RadioButton writeBackRadio;
-    @FXML private RadioButton writeThroughRadio;
+    @FXML
+    private RadioButton writeBackRadio;
+    @FXML
+    private RadioButton writeThroughRadio;
     private ToggleGroup writePoliciesGroup;
 
-    @FXML private RadioButton lruRadio;
-    @FXML private RadioButton fifoRadio;
-    @FXML private RadioButton randomRadio;
+    @FXML
+    private RadioButton lruRadio;
+    @FXML
+    private RadioButton fifoRadio;
+    @FXML
+    private RadioButton randomRadio;
     private ToggleGroup replacementPoliciesGroup;
 
     private Memory memory;
-    private DirectMappedCache cache;
+    private CacheMemory cache;
 
     @FXML
     private void initialize() {
@@ -56,6 +79,13 @@ public class Controller {
         fifoRadio.setToggleGroup(replacementPoliciesGroup);
         randomRadio.setToggleGroup(replacementPoliciesGroup);
         lruRadio.setSelected(true);
+
+        kLabel.setText("k = " + (int) kSlider.getValue());
+
+        // Add listener
+        kSlider.valueProperty().addListener((obs, oldValue, newValue) -> {
+            kLabel.setText("k = " + newValue.intValue());
+        });
 
 
         initializeMemoryTable();
@@ -95,21 +125,35 @@ public class Controller {
     }
 
     @FXML
-    private void initializeCache(){
+    private void initializeCache() {
         logArea.clear();
         int cacheSize = getCacheSize();
         int blockSize = getBlockSize();
 
-        if (cache == null || cache.getLines().length != cacheSize || cache.getBlockSize() != blockSize) {
+        ReplacementPolicy policy = getReplacementPolicy();
+
+        if (directMappedRadio.isSelected()) {
             cache = new DirectMappedCache(cacheSize, blockSize, memory);
-            ObservableList<CacheLine> cacheLines = FXCollections.observableArrayList(cache.getLines());
-            cacheTable.setItems(cacheLines);}
+            log("Initialized Direct Mapped Cache.");
+        } else if (setAssociativeRadio.isSelected()) {
+            int k = (int) kSlider.getValue();
+            cache = new SetAssociativeCache(cacheSize, blockSize, k, memory, policy);
+            log("Initialized " + k + "-Way Set Associative Cache. (" + policy + ").");
+        } else if (fullyAssociativeRadio.isSelected()) {
+            // Fully Associative is just Set Associative where K = CacheSize
+            // and NumSets = 1
+            cache = new SetAssociativeCache(cacheSize, blockSize, cacheSize, memory, policy);
+            log("Initialized Fully Associative Cache (" + policy + ").");
+        }
+
+        ObservableList<CacheLine> cacheLines = FXCollections.observableArrayList(cache.getLines());
+        cacheTable.setItems(cacheLines);
         cacheTable.refresh();
 
     }
 
     @FXML
-    private void handleWrite(){
+    private void handleWrite() {
         int address = Integer.parseInt(addressField.getText());
         String data = writeDataField.getText();
         boolean hit = cache.write(address, data);
@@ -120,14 +164,14 @@ public class Controller {
         cacheTable.refresh();
         memoryTable.refresh();
 
-        if(hit)
+        if (hit)
             log("✅ HIT: Wrote data '" + data + "' to address " + address + " in cache (and memory).");
         else
             log("❌ MISS: Address " + address + " not in cache. Loaded block and wrote data '" + data + "'.");
     }
 
     @FXML
-    private void handleRead(){
+    private void handleRead() {
         int address = Integer.parseInt(addressField.getText());
         boolean hit = cache.read(address);
         cacheTable.refresh();
@@ -136,12 +180,11 @@ public class Controller {
         cacheTable.refresh();
         memoryTable.refresh();
 
-        if(hit){
+        if (hit) {
             log("✅ HIT: Read from address " + address);
-        }
-        else {
+        } else {
             String missType = cache.getLastMissType();
-            log("❌ MISS ("+ missType + "): Loaded block for address " + address + " from memory(block " +
+            log("❌ MISS (" + missType + "): Loaded block for address " + address + " from memory(block " +
                     (address / cache.getBlockSize()) + ").");
         }
     }
@@ -155,11 +198,11 @@ public class Controller {
     }
 
     @FXML
-    private void log(String message){
+    private void log(String message) {
         logArea.appendText(message + "\n");
     }
 
-    private void updateCacheStats(){
+    private void updateCacheStats() {
         int totalAccesses = cache.getHits() + cache.getMisses();
 
         hitLabel.setText("HITS: " + cache.getHits());
@@ -171,16 +214,16 @@ public class Controller {
         double hitRatioPercent = 0;
         if (totalAccesses > 0) {
             hitRatioPercent = (double) cache.getHits() / totalAccesses * 100;
-        }
-        else hitRatioPercent = 0;
+        } else hitRatioPercent = 0;
         hitRatioLabel.setText(String.format("HIT RATIO: %.2f%%", hitRatioPercent));
         hitRatioLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
 
     }
+
+    private ReplacementPolicy getReplacementPolicy() {
+        if (lruRadio.isSelected()) return ReplacementPolicy.LRU;
+        if (fifoRadio.isSelected()) return ReplacementPolicy.FIFO;
+        return ReplacementPolicy.RANDOM;
+    }
 }
 
-
-
-// Add a memory block with random numbers to make the simulation more realistic
-// Store copies of blocks of memory to make it more precise
-// Implement Direct-Mapped, Set-Associative and Fully-Associative

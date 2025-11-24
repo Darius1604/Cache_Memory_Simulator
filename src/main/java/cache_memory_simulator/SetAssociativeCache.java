@@ -1,0 +1,187 @@
+package cache_memory_simulator;
+
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
+
+public class SetAssociativeCache implements CacheMemory {
+    private CacheLine[] lines;
+    private Memory memory;
+    private int blockSize;
+    private int associativity; // K
+    private int numSets;
+    private ReplacementPolicy replacementPolicy;
+
+    private int hits = 0;
+    private int misses = 0;
+    private String lastMissType;
+
+    private Set<Integer> seenBlocks = new HashSet<>();
+
+    // To implement LRU and FIFO, we need to track usage/insertion
+    private long[] usageTimestamps;
+    private long operationCounter = 0;
+
+    public SetAssociativeCache(int size, int blockSize, int associativity, Memory memory, ReplacementPolicy replacementPolicy) {
+        this.blockSize = blockSize;
+        this.memory = memory;
+        this.associativity = associativity;
+        this.replacementPolicy = replacementPolicy;
+
+        // Calculate number of sets
+        this.lines = new CacheLine[size];
+        this.usageTimestamps = new long[size];
+
+        // Example: 8 lines, 2-way => 4 sets.
+        this.numSets = size / associativity;
+
+        for (int i = 0; i < size; i++) {
+            lines[i] = new CacheLine(i, blockSize);
+            usageTimestamps[i] = 0;
+        }
+    }
+
+    @Override
+    public boolean read(int address) {
+        int blockNumber = address / blockSize;
+        int setIndex = blockNumber % numSets;
+        int tag = blockNumber / numSets;
+
+        // The lines for a set range from [setIndex * K] to [setIndex * K + K - 1]
+        int startIndex = setIndex * associativity;
+        int endIndex = startIndex + associativity;
+        for (int i = startIndex; i < endIndex; i++) {
+            CacheLine line = lines[i];
+            if (line.isValid() && line.getTag() == tag) {
+                hits++;
+                // Update usage for LRU (Touched now)
+                if (replacementPolicy == ReplacementPolicy.LRU)
+                    usageTimestamps[i] = ++operationCounter;
+                return true;
+            }
+        }
+        misses++;
+        handleMiss(address, blockNumber, tag, startIndex, endIndex);
+        return false;
+    }
+
+    @Override
+    public boolean write(int address, String data) {
+        int blockNumber = address / blockSize;
+        int setIndex = blockNumber % numSets;
+        int tag = blockNumber / numSets;
+        int offset = address % blockSize;
+
+        int startIndex = setIndex * associativity;
+        int endIndex = startIndex + associativity;
+
+        for (int i = startIndex; i < endIndex; i++) {
+            CacheLine line = lines[i];
+            if (line.isValid() && line.getTag() == tag) {
+                hits++;
+                // Write Through policy (update cache and memory)
+                line.getData()[offset] = data;
+                memory.write(address, data);
+                lastMissType = "Hit";
+
+                if (replacementPolicy == ReplacementPolicy.LRU)
+                    usageTimestamps[i] = ++operationCounter;
+                return true;
+
+            }
+        }
+
+        misses++;
+        // Fetch block first
+        int lineIndex = handleMiss(address, blockNumber, tag, startIndex, endIndex);
+
+        // Perform the write on the newly loaded line
+        lines[lineIndex].getData()[offset] = data;
+        memory.write(address, data);
+        return false;
+    }
+
+    // Helper function to handle fetching from memory and eviction logic
+    private int handleMiss(int address, int blockNumber, int tag, int startIndex, int endIndex) {
+        boolean isCompulsory = !seenBlocks.contains(blockNumber);
+        seenBlocks.add(blockNumber);
+
+        if (isCompulsory)
+            lastMissType = "Compulsory";
+        else
+            lastMissType = "Conflict";
+
+        int victimIndex = findVictimIndex(startIndex, endIndex);
+        CacheLine line = lines[victimIndex];
+
+        String[] blockData = new String[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            int memAddress = blockNumber * blockSize + i;
+            if (memAddress < memory.getSize())
+                blockData[i] = memory.read(memAddress);
+            else
+                blockData[i] = "";
+        }
+
+        line.setTag(tag);
+        line.setValid(true);
+        line.setData(blockData);
+
+        // Update timestamps for LRU or FIFO
+        // For LRU: Used now. For FIFO: Inserted now.
+        usageTimestamps[victimIndex] = ++operationCounter;
+        return victimIndex;
+    }
+
+    private int findVictimIndex(int startIndex, int endIndex) {
+        // First, look for an empty (invalid) line
+        for (int i = startIndex; i < endIndex; i++) {
+            if (!lines[i].isValid())
+                return i;
+        }
+
+        // If set is full, use Replacement Policy
+        if (replacementPolicy == ReplacementPolicy.RANDOM) {
+            Random rand = new Random();
+            return startIndex + rand.nextInt(associativity);
+        }
+
+        // Logic for LRU and FIFO is identical here: find the minimum timestamp
+        // Differences are handled when we UPDATE the timestamp ( Hit vs Miss)
+        int victimIndex = startIndex;
+        long minTime = usageTimestamps[victimIndex];
+
+        for (int i = startIndex + 1; i < endIndex; i++) {
+            if (usageTimestamps[i] < minTime) {
+                minTime = usageTimestamps[i];
+                victimIndex = i;
+            }
+        }
+        return victimIndex;
+    }
+
+
+    @Override
+    public CacheLine[] getLines() {
+        return lines;
+    }
+
+    @Override
+    public int getHits() {
+        return hits;
+    }
+
+    @Override
+    public int getMisses() {
+        return misses;
+    }
+
+    public String getLastMissType() {
+        return lastMissType;
+    }
+
+    @Override
+    public int getBlockSize() {
+        return blockSize;
+    }
+}

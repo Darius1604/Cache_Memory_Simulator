@@ -14,7 +14,7 @@ public class Memory {
         memoryCells = FXCollections.observableArrayList();
         Random rand = new Random();
         for (int i=0; i<size; i++) {
-            int value = rand.nextInt(100); // random number 0-99
+            int value = rand.nextInt(100);
             memory[i] = String.valueOf(value);
             memoryCells.add(new MemoryCell(i, memory[i]));
         }

@@ -24,7 +24,7 @@ public class DirectMappedCache implements CacheMemory {
     public boolean read(int address) {
         int blockNumber = address / blockSize;
         int lineIndex = (address / blockSize) % lines.length;
-        int tag = address / blockSize;
+        int tag = blockNumber / lines.length;
 
         CacheLine line = lines[lineIndex];
         int offset = address % blockSize; // position within the block
@@ -35,7 +35,6 @@ public class DirectMappedCache implements CacheMemory {
 
             // DirectMappedCache miss - fetch entire block from memory
         misses++;
-
         boolean isCompulsory = !seenBlocks.contains(blockNumber);
 
         String[] blockData = new String[blockSize];
@@ -66,16 +65,16 @@ public class DirectMappedCache implements CacheMemory {
 
     public boolean write(int address, String data) {
         int blockNumber = address / blockSize;
-        int lineIndex = blockNumber % lines.length;
-        int tag = blockNumber;
+        int lineIndex = (address / blockSize) % lines.length;
+        int tag = blockNumber / lines.length;
 
         CacheLine line = lines[lineIndex];
-        int offset = address % blockSize; // position within the block
+        int offset = address % blockSize;
 
         if(line.isValid() && line.getTag() == tag){
             hits++;
             line.getData()[offset] = data;
-            memory.write(address, data); // write-through for now
+            memory.write(address, data);
             lastMissType = "Hit";
             return true;
         }
@@ -99,7 +98,7 @@ public class DirectMappedCache implements CacheMemory {
 
 
         line.getData()[offset] = data;
-        memory.write(address, data); // write-through
+        memory.write(address, data);
 
         seenBlocks.add(blockNumber);
 
@@ -132,3 +131,9 @@ public class DirectMappedCache implements CacheMemory {
         return lastMissType;
     }
 }
+
+// peste 2 sapt 70% macar din el sa am gata
+// in 10 decembrie ar trebui sa fim si cu partea de testare finalizata
+// dupa sarbatori sa putem prezenta
+// in 10 decembrie discutam si cum prezentam proiectu
+// in 3 decembrie va fi plecata
