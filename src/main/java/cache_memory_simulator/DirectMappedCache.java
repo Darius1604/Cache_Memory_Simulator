@@ -11,14 +11,17 @@ public class DirectMappedCache implements CacheMemory {
     private int misses = 0;
     private Set<Integer> seenBlocks = new HashSet<>();
     private String lastMissType;
+    private WritePolicy writePolicy;
+    private String lastEvictionMessage = "";
 
 
-    public DirectMappedCache(int size, int blockSize, Memory memory){
+    public DirectMappedCache(int size, int blockSize, Memory memory, WritePolicy writePolicy) {
         lines = new CacheLine[size];
-        for(int i = 0; i < size; i++)
+        for (int i = 0; i < size; i++)
             lines[i] = new CacheLine(i, blockSize);
         this.blockSize = blockSize;
         this.memory = memory;
+        this.writePolicy = writePolicy;
     }
 
     public boolean read(int address) {
@@ -28,33 +31,37 @@ public class DirectMappedCache implements CacheMemory {
 
         CacheLine line = lines[lineIndex];
         int offset = address % blockSize; // position within the block
-        if(line.isValid() && line.getTag() == tag){
+        if (line.isValid() && line.getTag() == tag) {
             hits++;
             return true;
         }
 
-            // DirectMappedCache miss - fetch entire block from memory
+        // DirectMappedCache miss - fetch entire block from memory
         misses++;
+        // Check if the current occupant is dirty before kicking it out
+        if (line.isValid() && line.isDirty()) {
+            flushDirtyLine(line, lineIndex);
+        }
         boolean isCompulsory = !seenBlocks.contains(blockNumber);
 
         String[] blockData = new String[blockSize];
-        for(int i=0; i<blockSize; i++){
+        for (int i = 0; i < blockSize; i++) {
             int memAddress = blockNumber * blockSize + i;
             if (memAddress < memory.getSize()) {
                 blockData[i] = memory.read(memAddress);
-            }
-            else {
+            } else {
                 blockData[i] = ""; // empty string for out-of-bounds
             }
         }
         line.setTag(tag);
         line.setValid(true);
+        line.setDirty(false); // New data is clean (matches memory)
         line.setData(blockData);
 
         seenBlocks.add(blockNumber);
 
         // store type of miss for later use
-        if(isCompulsory)
+        if (isCompulsory)
             lastMissType = "Compulsory";
         else lastMissType = "Conflict";
 
@@ -64,6 +71,7 @@ public class DirectMappedCache implements CacheMemory {
     }
 
     public boolean write(int address, String data) {
+        this.lastEvictionMessage = "";
         int blockNumber = address / blockSize;
         int lineIndex = (address / blockSize) % lines.length;
         int tag = blockNumber / lines.length;
@@ -71,21 +79,31 @@ public class DirectMappedCache implements CacheMemory {
         CacheLine line = lines[lineIndex];
         int offset = address % blockSize;
 
-        if(line.isValid() && line.getTag() == tag){
+        if (line.isValid() && line.getTag() == tag) {
             hits++;
             line.getData()[offset] = data;
-            memory.write(address, data);
+
+            // Check policy
+            if (writePolicy == WritePolicy.WRITE_THROUGH)
+                memory.write(address, data); // Write immediately
+            else
+                line.setDirty(true);
             lastMissType = "Hit";
             return true;
         }
 
         misses++;
+
+        // Evict old dirty line if necessary
+        if (line.isValid() && line.isDirty())
+            flushDirtyLine(line, lineIndex);
+
         boolean isCompulsory = !seenBlocks.contains(blockNumber);
 
         String[] blockData = new String[blockSize];
-        for(int i = 0; i < blockSize; i++){
+        for (int i = 0; i < blockSize; i++) {
             int memAddress = blockNumber * blockSize + i;
-            if(memAddress < memory.getSize()) {
+            if (memAddress < memory.getSize()) {
                 blockData[i] = memory.read(memAddress);
             } else {
                 blockData[i] = "";
@@ -96,13 +114,14 @@ public class DirectMappedCache implements CacheMemory {
         line.setValid(true);
         line.setData(blockData);
 
-
         line.getData()[offset] = data;
-        memory.write(address, data);
+        if (writePolicy == WritePolicy.WRITE_THROUGH)
+            memory.write(address, data);
+        else
+            line.setDirty(true); // Modified the loaded block, but haven't sent to memory yet
 
         seenBlocks.add(blockNumber);
-
-        if(isCompulsory)
+        if (isCompulsory)
             lastMissType = "Compulsory";
         else
             lastMissType = "Conflict";
@@ -111,15 +130,15 @@ public class DirectMappedCache implements CacheMemory {
     }
 
 
-    public CacheLine[] getLines(){
+    public CacheLine[] getLines() {
         return lines;
     }
 
-    public int getHits(){
+    public int getHits() {
         return hits;
     }
 
-    public int getMisses(){
+    public int getMisses() {
         return misses;
     }
 
@@ -127,13 +146,27 @@ public class DirectMappedCache implements CacheMemory {
         return blockSize;
     }
 
-    public String getLastMissType(){
+    public String getLastMissType() {
         return lastMissType;
+    }
+
+    private void flushDirtyLine(CacheLine line, int lineIndex) {
+        int oldBlockNumber = (line.getTag() * lines.length) + lineIndex;
+        int oldBaseAddress = oldBlockNumber * blockSize;
+
+        // Write the entire block back to memory
+        String[] data = line.getData();
+        for (int i = 0; i < blockSize; i++) {
+            if (oldBaseAddress + i < memory.getSize()) {
+                memory.write(oldBaseAddress + i, data[i]);
+            }
+        }
+        this.lastEvictionMessage = "Write-Back: Evicted dirty  block " + oldBlockNumber + " to memory and wrote to address " + oldBaseAddress;
+    }
+
+    @Override
+    public String getLastEvictionMessage() {
+        return lastEvictionMessage;
     }
 }
 
-// peste 2 sapt 70% macar din el sa am gata
-// in 10 decembrie ar trebui sa fim si cu partea de testare finalizata
-// dupa sarbatori sa putem prezenta
-// in 10 decembrie discutam si cum prezentam proiectu
-// in 3 decembrie va fi plecata

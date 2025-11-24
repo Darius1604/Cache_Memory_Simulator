@@ -72,7 +72,7 @@ public class Controller {
         writePoliciesGroup = new ToggleGroup();
         writeBackRadio.setToggleGroup(writePoliciesGroup);
         writeThroughRadio.setToggleGroup(writePoliciesGroup);
-        writeBackRadio.setSelected(true);
+        writeThroughRadio.setSelected(true);
 
         replacementPoliciesGroup = new ToggleGroup();
         lruRadio.setToggleGroup(replacementPoliciesGroup);
@@ -111,7 +111,11 @@ public class Controller {
         dataCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(String.valueOf(cellData.getValue().getDataAsString())));
 
-        cacheTable.getColumns().addAll(lineCol, validCol, tagCol, dataCol);
+        TableColumn<CacheLine, String> dirtyCol = new TableColumn<>("Dirty");
+        dirtyCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty(String.valueOf(cellData.getValue().isDirty())));
+
+        cacheTable.getColumns().addAll(lineCol, validCol, tagCol, dataCol, dirtyCol);
         cacheTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
     }
 
@@ -132,18 +136,22 @@ public class Controller {
 
         ReplacementPolicy policy = getReplacementPolicy();
 
+        WritePolicy writePolicy = WritePolicy.WRITE_THROUGH; // default
+        if (writeBackRadio.isSelected())
+            writePolicy = WritePolicy.WRITE_BACK;
+
         if (directMappedRadio.isSelected()) {
-            cache = new DirectMappedCache(cacheSize, blockSize, memory);
-            log("Initialized Direct Mapped Cache.");
+            cache = new DirectMappedCache(cacheSize, blockSize, memory, writePolicy);
+            log("Initialized Direct Mapped Cache (" + writePolicy + ")");
         } else if (setAssociativeRadio.isSelected()) {
             int k = (int) kSlider.getValue();
-            cache = new SetAssociativeCache(cacheSize, blockSize, k, memory, policy);
-            log("Initialized " + k + "-Way Set Associative Cache. (" + policy + ").");
+            cache = new SetAssociativeCache(cacheSize, blockSize, k, memory, policy, writePolicy);
+            log("Initialized " + k + "-Way Set Associative Cache (" + policy + ") (" + writePolicy + ").");
         } else if (fullyAssociativeRadio.isSelected()) {
             // Fully Associative is just Set Associative where K = CacheSize
             // and NumSets = 1
-            cache = new SetAssociativeCache(cacheSize, blockSize, cacheSize, memory, policy);
-            log("Initialized Fully Associative Cache (" + policy + ").");
+            cache = new SetAssociativeCache(cacheSize, blockSize, cacheSize, memory, policy, writePolicy);
+            log("Initialized Fully Associative Cache (" + policy + ") (" + writePolicy + ").");
         }
 
         ObservableList<CacheLine> cacheLines = FXCollections.observableArrayList(cache.getLines());
@@ -154,20 +162,47 @@ public class Controller {
 
     @FXML
     private void handleWrite() {
-        int address = Integer.parseInt(addressField.getText());
-        String data = writeDataField.getText();
-        boolean hit = cache.write(address, data);
+        try {
+            int address = Integer.parseInt(addressField.getText());
+            String data = writeDataField.getText();
 
-        cacheTable.refresh();
-        memoryTable.refresh(); // update memory table
-        updateCacheStats();
-        cacheTable.refresh();
-        memoryTable.refresh();
+            boolean isWriteBack = writeBackRadio.isSelected();
 
-        if (hit)
-            log("✅ HIT: Wrote data '" + data + "' to address " + address + " in cache (and memory).");
-        else
-            log("❌ MISS: Address " + address + " not in cache. Loaded block and wrote data '" + data + "'.");
+            boolean hit = cache.write(address, data);
+
+            cacheTable.refresh();
+            memoryTable.refresh();
+            updateCacheStats();
+
+            if (hit) {
+                if (isWriteBack) {
+                    log("✅ HIT: Wrote '" + data + "' to Address " + address + ".\n" +
+                            "       -> Cache updated & marked DIRTY.\n" +
+                            "       -> Memory NOT updated (Write-Back).");
+                } else {
+                    log("✅ HIT: Wrote '" + data + "' to Address " + address + ".\n" +
+                            "       -> Cache AND Memory updated (Write-Through).");
+                }
+            } else {
+                String missDetails;
+                if (isWriteBack) {
+                    missDetails = "Loaded block. Cache updated & marked DIRTY. Memory NOT updated.";
+                } else {
+                    missDetails = "Loaded block. Cache AND Memory updated.";
+                }
+
+                log("❌ MISS: Address " + address + " not in cache.\n" +
+                        "       -> " + missDetails);
+            }
+
+            String evictionMsg = cache.getLastEvictionMessage();
+            if (evictionMsg != null && !evictionMsg.isEmpty()) {
+                log(" " + evictionMsg); // Slightly indented
+            }
+
+        } catch (NumberFormatException e) {
+            log("⚠️ Error: Please enter valid numbers for Address.");
+        }
     }
 
     @FXML
@@ -186,6 +221,10 @@ public class Controller {
             String missType = cache.getLastMissType();
             log("❌ MISS (" + missType + "): Loaded block for address " + address + " from memory(block " +
                     (address / cache.getBlockSize()) + ").");
+        }
+        String evictionMsg = cache.getLastEvictionMessage();
+        if (evictionMsg != null && !evictionMsg.isEmpty()) {
+            log("       -> " + evictionMsg); // Slightly indented
         }
     }
 

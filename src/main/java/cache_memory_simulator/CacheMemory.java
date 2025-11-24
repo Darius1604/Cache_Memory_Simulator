@@ -14,4 +14,6 @@ public interface CacheMemory {
     String getLastMissType();
 
     int getBlockSize();
+
+    String getLastEvictionMessage();
 }

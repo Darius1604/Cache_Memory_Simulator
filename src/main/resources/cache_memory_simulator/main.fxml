@@ -54,19 +54,22 @@
             <RadioButton fx:id="fullyAssociativeRadio" mnemonicParsing="false" text="Fully-Associative" toggleGroup="$cacheTypeGroup" />
          </children>
       </VBox>
-      <VBox layoutX="197.0" layoutY="66.0" prefHeight="144.0" prefWidth="139.0" spacing="45.0">
+      <VBox layoutX="197.0" layoutY="66.0" prefHeight="144.0" prefWidth="139.0" spacing="45.0" AnchorPane.topAnchor="66.0">
          <children>
-            <RadioButton fx:id="writeBackRadio" mnemonicParsing="false" text="Write-back">
-               <padding>
-                  <Insets top="30.0" />
-               </padding>
-               <toggleGroup>
-                  <ToggleGroup fx:id="writePoliciesGroup" />
-               </toggleGroup>
-            </RadioButton>
             <RadioButton fx:id="writeThroughRadio" mnemonicParsing="false" text="Write-through">
                <toggleGroup>
                   <ToggleGroup fx:id="WritePoliciesGroup" />
+               </toggleGroup>
+               <VBox.margin>
+                  <Insets top="20.0" />
+               </VBox.margin>
+            </RadioButton>
+            <RadioButton fx:id="writeBackRadio" mnemonicParsing="false" text="Write-back">
+               <padding>
+                  <Insets top="15.0" />
+               </padding>
+               <toggleGroup>
+                  <ToggleGroup fx:id="writePoliciesGroup" />
                </toggleGroup>
             </RadioButton>
          </children>
