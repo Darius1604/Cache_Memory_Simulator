@@ -14,6 +14,10 @@ public class DirectMappedCache implements CacheMemory {
     private WritePolicy writePolicy;
     private String lastEvictionMessage = "";
 
+    private int lastBlockNumber;
+    private int lastLineIndex;
+    private int lastTag;
+
 
     public DirectMappedCache(int size, int blockSize, Memory memory, WritePolicy writePolicy) {
         lines = new CacheLine[size];
@@ -25,13 +29,13 @@ public class DirectMappedCache implements CacheMemory {
     }
 
     public boolean read(int address) {
-        int blockNumber = address / blockSize;
-        int lineIndex = (address / blockSize) % lines.length;
-        int tag = blockNumber / lines.length;
+        this.lastBlockNumber = address / blockSize;
+        this.lastLineIndex = (address / blockSize) % lines.length;
+        this.lastTag = lastBlockNumber / lines.length;
 
-        CacheLine line = lines[lineIndex];
+        CacheLine line = lines[lastLineIndex];
         int offset = address % blockSize; // position within the block
-        if (line.isValid() && line.getTag() == tag) {
+        if (line.isValid() && line.getTag() == lastTag) {
             hits++;
             return true;
         }
@@ -40,25 +44,25 @@ public class DirectMappedCache implements CacheMemory {
         misses++;
         // Check if the current occupant is dirty before kicking it out
         if (line.isValid() && line.isDirty()) {
-            flushDirtyLine(line, lineIndex);
+            flushDirtyLine(line, lastLineIndex);
         }
-        boolean isCompulsory = !seenBlocks.contains(blockNumber);
+        boolean isCompulsory = !seenBlocks.contains(lastBlockNumber);
 
         String[] blockData = new String[blockSize];
         for (int i = 0; i < blockSize; i++) {
-            int memAddress = blockNumber * blockSize + i;
+            int memAddress = lastBlockNumber * blockSize + i;
             if (memAddress < memory.getSize()) {
                 blockData[i] = memory.read(memAddress);
             } else {
                 blockData[i] = ""; // empty string for out-of-bounds
             }
         }
-        line.setTag(tag);
+        line.setTag(lastTag);
         line.setValid(true);
         line.setDirty(false); // New data is clean (matches memory)
         line.setData(blockData);
 
-        seenBlocks.add(blockNumber);
+        seenBlocks.add(lastBlockNumber);
 
         // store type of miss for later use
         if (isCompulsory)
@@ -72,14 +76,14 @@ public class DirectMappedCache implements CacheMemory {
 
     public boolean write(int address, String data) {
         this.lastEvictionMessage = "";
-        int blockNumber = address / blockSize;
-        int lineIndex = (address / blockSize) % lines.length;
-        int tag = blockNumber / lines.length;
+        this.lastBlockNumber = address / blockSize;
+        this.lastLineIndex = (address / blockSize) % lines.length;
+        this.lastTag = lastBlockNumber / lines.length;
 
-        CacheLine line = lines[lineIndex];
+        CacheLine line = lines[lastLineIndex];
         int offset = address % blockSize;
 
-        if (line.isValid() && line.getTag() == tag) {
+        if (line.isValid() && line.getTag() == lastTag) {
             hits++;
             line.getData()[offset] = data;
 
@@ -96,13 +100,13 @@ public class DirectMappedCache implements CacheMemory {
 
         // Evict old dirty line if necessary
         if (line.isValid() && line.isDirty())
-            flushDirtyLine(line, lineIndex);
+            flushDirtyLine(line, lastLineIndex);
 
-        boolean isCompulsory = !seenBlocks.contains(blockNumber);
+        boolean isCompulsory = !seenBlocks.contains(lastBlockNumber);
 
         String[] blockData = new String[blockSize];
         for (int i = 0; i < blockSize; i++) {
-            int memAddress = blockNumber * blockSize + i;
+            int memAddress = lastBlockNumber * blockSize + i;
             if (memAddress < memory.getSize()) {
                 blockData[i] = memory.read(memAddress);
             } else {
@@ -110,7 +114,7 @@ public class DirectMappedCache implements CacheMemory {
             }
         }
 
-        line.setTag(tag);
+        line.setTag(lastTag);
         line.setValid(true);
         line.setData(blockData);
 
@@ -120,7 +124,7 @@ public class DirectMappedCache implements CacheMemory {
         else
             line.setDirty(true); // Modified the loaded block, but haven't sent to memory yet
 
-        seenBlocks.add(blockNumber);
+        seenBlocks.add(lastBlockNumber);
         if (isCompulsory)
             lastMissType = "Compulsory";
         else
@@ -167,6 +171,11 @@ public class DirectMappedCache implements CacheMemory {
     @Override
     public String getLastEvictionMessage() {
         return lastEvictionMessage;
+    }
+
+    @Override
+    public String getLastAccessDetails() {
+        return String.format("[Block: %d | Line: %d | Tag: %d]", lastBlockNumber, lastLineIndex, lastTag);
     }
 }
 

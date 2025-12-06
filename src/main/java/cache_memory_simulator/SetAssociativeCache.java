@@ -24,6 +24,10 @@ public class SetAssociativeCache implements CacheMemory {
     private long[] usageTimestamps;
     private long operationCounter = 0;
 
+    private int lastBlockNumber;
+    private int lastSetIndex;
+    private int lastTag;
+
     public SetAssociativeCache(int size, int blockSize, int associativity, Memory memory, ReplacementPolicy replacementPolicy, WritePolicy writePolicy) {
         this.blockSize = blockSize;
         this.memory = memory;
@@ -46,16 +50,16 @@ public class SetAssociativeCache implements CacheMemory {
 
     @Override
     public boolean read(int address) {
-        int blockNumber = address / blockSize;
-        int setIndex = blockNumber % numSets;
-        int tag = blockNumber / numSets;
+        this.lastBlockNumber = address / blockSize;
+        this.lastSetIndex = lastBlockNumber % numSets;
+        this.lastTag = lastBlockNumber / numSets;
 
         // The lines for a set range from [setIndex * K] to [setIndex * K + K - 1]
-        int startIndex = setIndex * associativity;
+        int startIndex = lastSetIndex * associativity;
         int endIndex = startIndex + associativity;
         for (int i = startIndex; i < endIndex; i++) {
             CacheLine line = lines[i];
-            if (line.isValid() && line.getTag() == tag) {
+            if (line.isValid() && line.getTag() == lastTag) {
                 hits++;
                 // Update usage for LRU (Touched now)
                 if (replacementPolicy == ReplacementPolicy.LRU)
@@ -64,24 +68,24 @@ public class SetAssociativeCache implements CacheMemory {
             }
         }
         misses++;
-        handleMiss(address, blockNumber, tag, startIndex, endIndex);
+        handleMiss(address, lastBlockNumber, lastTag, startIndex, endIndex);
         return false;
     }
 
     @Override
     public boolean write(int address, String data) {
         this.lastEvictionMessage = "";
-        int blockNumber = address / blockSize;
-        int setIndex = blockNumber % numSets;
-        int tag = blockNumber / numSets;
+        this.lastBlockNumber = address / blockSize;
+        this.lastSetIndex = lastBlockNumber % numSets;
+        this.lastTag = lastBlockNumber / numSets;
         int offset = address % blockSize;
 
-        int startIndex = setIndex * associativity;
+        int startIndex = lastSetIndex * associativity;
         int endIndex = startIndex + associativity;
 
         for (int i = startIndex; i < endIndex; i++) {
             CacheLine line = lines[i];
-            if (line.isValid() && line.getTag() == tag) {
+            if (line.isValid() && line.getTag() == lastTag) {
                 hits++;
                 // Write Through policy (update cache and memory)
                 line.getData()[offset] = data;
@@ -100,7 +104,7 @@ public class SetAssociativeCache implements CacheMemory {
 
         misses++;
         // Fetch block first
-        int lineIndex = handleMiss(address, blockNumber, tag, startIndex, endIndex);
+        int lineIndex = handleMiss(address, lastBlockNumber, lastTag, startIndex, endIndex);
 
         // Perform the write on the newly loaded line
         lines[lineIndex].getData()[offset] = data;
@@ -181,6 +185,11 @@ public class SetAssociativeCache implements CacheMemory {
             memory.write(oldBaseAddress + i, data[i]);
         }
         this.lastEvictionMessage = "Evicted dirty block " + oldBlockNumber + " to memory and" + "wrote to address " + oldBaseAddress;
+    }
+
+    @Override
+    public String getLastAccessDetails() {
+        return String.format("[Block: %d | Set: %d | Tag: %d]", lastBlockNumber, lastSetIndex, lastTag);
     }
 
 

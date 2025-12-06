@@ -5,9 +5,9 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.control.TableRow;
 
 public class Controller {
-
     @FXML
     private TextField cacheSizeField;
     @FXML
@@ -42,12 +42,14 @@ public class Controller {
     private RadioButton setAssociativeRadio;
     @FXML
     private RadioButton fullyAssociativeRadio;
+    @FXML
     private ToggleGroup cacheTypeGroup;
 
     @FXML
     private RadioButton writeBackRadio;
     @FXML
     private RadioButton writeThroughRadio;
+    @FXML
     private ToggleGroup writePoliciesGroup;
 
     @FXML
@@ -56,13 +58,23 @@ public class Controller {
     private RadioButton fifoRadio;
     @FXML
     private RadioButton randomRadio;
+    @FXML
     private ToggleGroup replacementPoliciesGroup;
+
+    @FXML
+    public ComboBox<Integer> memorySizeBox;
+
+    private TableColumn<CacheLine, String> setCol;
 
     private Memory memory;
     private CacheMemory cache;
 
+
     @FXML
     private void initialize() {
+        memorySizeBox.getItems().addAll(256, 512, 1024, 2048);
+        memorySizeBox.getSelectionModel().selectFirst();
+
         cacheTypeGroup = new ToggleGroup();
         directMappedRadio.setToggleGroup(cacheTypeGroup);
         setAssociativeRadio.setToggleGroup(cacheTypeGroup);
@@ -80,6 +92,21 @@ public class Controller {
         randomRadio.setToggleGroup(replacementPoliciesGroup);
         lruRadio.setSelected(true);
 
+        setCol = new TableColumn<>("Set");
+        setCol.setCellValueFactory(cellData -> {
+            int lineIndex = cellData.getValue().getLineIndex();
+
+            // Dynamic K calculation
+            int k = 1;
+            if (setAssociativeRadio.isSelected()) {
+                k = (int) kSlider.getValue();
+            } else if (fullyAssociativeRadio.isSelected()) {
+                k = getCacheSize();
+            }
+
+            return new SimpleStringProperty(String.valueOf(lineIndex / k));
+        });
+
         kLabel.setText("k = " + (int) kSlider.getValue());
 
         // Add listener
@@ -89,7 +116,7 @@ public class Controller {
 
 
         initializeMemoryTable();
-        memory = new Memory(256);
+        memory = new Memory(memorySizeBox.getValue());
         memoryTable.setItems(memory.getMemoryCells());
 
         TableColumn<CacheLine, String> lineCol = new TableColumn<>("Line");
@@ -117,6 +144,7 @@ public class Controller {
 
         cacheTable.getColumns().addAll(lineCol, validCol, tagCol, dataCol, dirtyCol);
         cacheTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        setupTableColoring();
     }
 
     private void initializeMemoryTable() {
@@ -131,6 +159,16 @@ public class Controller {
     @FXML
     private void initializeCache() {
         logArea.clear();
+
+
+        int selectedMemorySize = memorySizeBox.getValue();
+        memory = new Memory(selectedMemorySize);
+
+        memoryTable.setItems(memory.getMemoryCells());
+        memoryTable.refresh();
+
+        log("System Initialized: Memory Size " + selectedMemorySize);
+
         int cacheSize = getCacheSize();
         int blockSize = getBlockSize();
 
@@ -154,6 +192,15 @@ public class Controller {
             log("Initialized Fully Associative Cache (" + policy + ") (" + writePolicy + ").");
         }
 
+        boolean isSetAssociative = setAssociativeRadio.isSelected();
+        boolean columnExists = cacheTable.getColumns().contains(setCol);
+
+        if (isSetAssociative && !columnExists) {
+            cacheTable.getColumns().add(1, setCol);
+        } else if (!isSetAssociative && columnExists) {
+            cacheTable.getColumns().remove(setCol);
+        }
+
         ObservableList<CacheLine> cacheLines = FXCollections.observableArrayList(cache.getLines());
         cacheTable.setItems(cacheLines);
         cacheTable.refresh();
@@ -165,7 +212,6 @@ public class Controller {
         try {
             int address = Integer.parseInt(addressField.getText());
             String data = writeDataField.getText();
-
             boolean isWriteBack = writeBackRadio.isSelected();
 
             boolean hit = cache.write(address, data);
@@ -174,57 +220,58 @@ public class Controller {
             memoryTable.refresh();
             updateCacheStats();
 
-            if (hit) {
-                if (isWriteBack) {
-                    log("✅ HIT: Wrote '" + data + "' to Address " + address + ".\n" +
-                            "       -> Cache updated & marked DIRTY.\n" +
-                            "       -> Memory NOT updated (Write-Back).");
-                } else {
-                    log("✅ HIT: Wrote '" + data + "' to Address " + address + ".\n" +
-                            "       -> Cache AND Memory updated (Write-Through).");
-                }
-            } else {
-                String missDetails;
-                if (isWriteBack) {
-                    missDetails = "Loaded block. Cache updated & marked DIRTY. Memory NOT updated.";
-                } else {
-                    missDetails = "Loaded block. Cache AND Memory updated.";
-                }
+            String locationDetails = cache.getLastAccessDetails();
 
-                log("❌ MISS: Address " + address + " not in cache.\n" +
-                        "       -> " + missDetails);
+            if (hit) {
+                log("✅ HIT: Wrote '" + data + "' to " + address + ". " + locationDetails);
+                if (isWriteBack) log("       -> Cache marked DIRTY. Memory NOT updated.");
+                else log("       -> Cache & Memory updated (Write-Through).");
+            } else {
+                log("❌ MISS: Address " + address + " " + locationDetails);
+                log("       -> Loaded block. " + (isWriteBack ? "Marked DIRTY." : "Updated Memory."));
             }
 
             String evictionMsg = cache.getLastEvictionMessage();
             if (evictionMsg != null && !evictionMsg.isEmpty()) {
-                log(" " + evictionMsg); // Slightly indented
+                log("       [!] " + evictionMsg);
             }
+            log("------------------------------------------------------");
 
         } catch (NumberFormatException e) {
-            log("⚠️ Error: Please enter valid numbers for Address.");
+            log("[!] Error: Please enter valid numbers for Address.");
         }
     }
 
     @FXML
     private void handleRead() {
-        int address = Integer.parseInt(addressField.getText());
-        boolean hit = cache.read(address);
-        cacheTable.refresh();
-        memoryTable.refresh();
-        updateCacheStats();
-        cacheTable.refresh();
-        memoryTable.refresh();
+        try {
+            int address = Integer.parseInt(addressField.getText());
+            boolean hit = cache.read(address);
 
-        if (hit) {
-            log("✅ HIT: Read from address " + address);
-        } else {
-            String missType = cache.getLastMissType();
-            log("❌ MISS (" + missType + "): Loaded block for address " + address + " from memory(block " +
-                    (address / cache.getBlockSize()) + ").");
-        }
-        String evictionMsg = cache.getLastEvictionMessage();
-        if (evictionMsg != null && !evictionMsg.isEmpty()) {
-            log("       -> " + evictionMsg); // Slightly indented
+            cacheTable.refresh();
+            memoryTable.refresh();
+            updateCacheStats();
+
+            cacheTable.refresh();
+            memoryTable.refresh();
+
+            String locationDetails = cache.getLastAccessDetails();
+
+            if (hit) {
+                log("✅ HIT: Address " + address + " found. " + locationDetails);
+            } else {
+                String missType = cache.getLastMissType();
+                log("❌ MISS (" + missType + "): Address " + address + " not found. " + locationDetails);
+                log("       -> Loaded Block " + (address / cache.getBlockSize()) + " from memory.");
+            }
+            String evictionMsg = cache.getLastEvictionMessage();
+            if (evictionMsg != null && !evictionMsg.isEmpty()) {
+                log("       [!]  " + evictionMsg);
+            }
+            log("------------------------------------------------------");
+
+        } catch (NumberFormatException e) {
+            log("[!] Error: Please enter a valid number for Address.");
         }
     }
 
@@ -264,5 +311,47 @@ public class Controller {
         if (fifoRadio.isSelected()) return ReplacementPolicy.FIFO;
         return ReplacementPolicy.RANDOM;
     }
+
+    private void setupTableColoring() {
+        cacheTable.setRowFactory(tv -> {
+            return new TableRow<CacheLine>() {
+                @Override
+                protected void updateItem(CacheLine item, boolean empty) {
+                    super.updateItem(item, empty);
+                    getStyleClass().removeAll("set-group-0", "set-group-1", "set-group-2", "set-group-3", "end-of-set");
+
+                    if (item == null || empty) {
+                        return;
+                    }
+
+                    if (directMappedRadio.isSelected()) {
+                        return;
+                    }
+
+                    int k = 1;
+                    if (setAssociativeRadio.isSelected()) {
+                        k = (int) kSlider.getValue();
+                    } else if (fullyAssociativeRadio.isSelected()) {
+                        getStyleClass().add("set-group-0");
+                        return;
+                    }
+
+                    int lineIndex = item.getLineIndex();
+                    int setIndex = lineIndex / k;
+                    int positionInSet = lineIndex % k;
+
+                    int colorGroup = setIndex % 4;
+                    getStyleClass().add("set-group-" + colorGroup);
+
+                    if (positionInSet == k - 1) {
+                        getStyleClass().add("end-of-set");
+                    }
+                }
+            };
+        });
+    }
+
+
 }
 
+// sa adaug sa citeasca un file cu READ <adresa>, WRITE <adresa>, <valoarea>

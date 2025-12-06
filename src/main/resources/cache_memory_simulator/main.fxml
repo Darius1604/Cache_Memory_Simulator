@@ -4,90 +4,164 @@
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.RadioButton?>
+<?import javafx.scene.control.Separator?>
 <?import javafx.scene.control.Slider?>
+<?import javafx.scene.control.SplitPane?>
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.control.TextArea?>
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.control.ToggleGroup?>
-<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 
-<AnchorPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="1000.0" prefWidth="1600.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="cache_memory_simulator.Controller">
-   <children>
-      <HBox layoutX="37.0" layoutY="28.0" prefHeight="38.0" prefWidth="586.0" spacing="20.0">
-         <children>
-            <Label prefHeight="25.0" prefWidth="112.0" text="Cache Lines:" />
-            <TextField fx:id="cacheSizeField" prefHeight="25.0" prefWidth="150.0" />
-            <Label prefHeight="24.0" prefWidth="90.0" text="Block Size:" />
-            <TextField fx:id="blockSizeField" prefHeight="25.0" prefWidth="150.0" />
-         </children>
-      </HBox>
-      <HBox layoutX="39.0" layoutY="302.0" prefHeight="25.0" prefWidth="527.0" spacing="10.0">
-         <children>
-            <Label text="Memory Address:" />
-            <TextField fx:id="addressField" prefHeight="25.0" prefWidth="150.0" />
-            <Label text="Data" />
-            <TextField fx:id="writeDataField" prefHeight="25.0" prefWidth="150.0" />
-         </children>
-      </HBox>
-      <TableView fx:id="cacheTable" layoutX="694.0" layoutY="28.0" prefHeight="934.0" prefWidth="700.0" />
-      <Button layoutX="197.0" layoutY="334.0" mnemonicParsing="false" onAction="#handleRead" text="Read" />
-      <Button layoutX="381.0" layoutY="334.0" mnemonicParsing="false" onAction="#handleWrite" text="Write" />
-      <TableView fx:id="memoryTable" layoutX="14.0" layoutY="471.0" prefHeight="289.0" prefWidth="611.0" />
-      <TextArea fx:id="logArea" layoutX="14.0" layoutY="776.0" prefHeight="193.0" prefWidth="611.0" />
-      <VBox layoutX="66.0" layoutY="369.0" prefHeight="80.0" prefWidth="555.0" spacing="15.0" AnchorPane.bottomAnchor="551.0" AnchorPane.leftAnchor="66.0" AnchorPane.rightAnchor="979.0" AnchorPane.topAnchor="369.0">
-         <children>
-            <Label fx:id="hitLabel" prefHeight="17.0" prefWidth="528.0" text="Hits: 0" />
-            <Label fx:id="missLabel" prefHeight="17.0" prefWidth="278.0" text="Misses: 0" />
-            <Label fx:id="hitRatioLabel" alignment="TOP_LEFT" prefHeight="17.0" prefWidth="271.0" text="Hit ratio:" wrapText="true" />
-         </children>
-      </VBox>
-      <VBox layoutX="39.0" layoutY="66.0" prefHeight="144.0" prefWidth="139.0" spacing="45.0">
-         <children>
-            <RadioButton fx:id="directMappedRadio" mnemonicParsing="false" text="Direct-Mapped">
-               <toggleGroup>
-                  <ToggleGroup fx:id="cacheTypeGroup" />
-               </toggleGroup>
-            </RadioButton>
-            <RadioButton fx:id="setAssociativeRadio" mnemonicParsing="false" text="Set-Associative" toggleGroup="$cacheTypeGroup" />
-            <RadioButton fx:id="fullyAssociativeRadio" mnemonicParsing="false" text="Fully-Associative" toggleGroup="$cacheTypeGroup" />
-         </children>
-      </VBox>
-      <VBox layoutX="197.0" layoutY="66.0" prefHeight="144.0" prefWidth="139.0" spacing="45.0" AnchorPane.topAnchor="66.0">
-         <children>
-            <RadioButton fx:id="writeThroughRadio" mnemonicParsing="false" text="Write-through">
-               <toggleGroup>
-                  <ToggleGroup fx:id="WritePoliciesGroup" />
-               </toggleGroup>
-               <VBox.margin>
-                  <Insets top="20.0" />
-               </VBox.margin>
-            </RadioButton>
-            <RadioButton fx:id="writeBackRadio" mnemonicParsing="false" text="Write-back">
-               <padding>
-                  <Insets top="15.0" />
-               </padding>
-               <toggleGroup>
-                  <ToggleGroup fx:id="writePoliciesGroup" />
-               </toggleGroup>
-            </RadioButton>
-         </children>
-      </VBox>
-      <VBox layoutX="342.0" layoutY="66.0" prefHeight="144.0" prefWidth="155.0" spacing="45.0">
-         <children>
-            <RadioButton fx:id="lruRadio" mnemonicParsing="false" text="LRU(Least Recently Used)">
-               <toggleGroup>
-                  <ToggleGroup fx:id="replacementPoliciesGroup" />
-               </toggleGroup>
-            </RadioButton>
-            <RadioButton fx:id="fifoRadio" mnemonicParsing="false" text="FIFO(First In, First Out)" toggleGroup="$replacementPoliciesGroup" />
-            <RadioButton fx:id="randomRadio" mnemonicParsing="false" text="Random" toggleGroup="$replacementPoliciesGroup" />
-         </children>
-      </VBox>
-      <Button layoutX="534.0" layoutY="138.0" mnemonicParsing="false" onAction="#initializeCache" prefHeight="25.0" prefWidth="115.0" text="Initialize cache" />
-      <Slider fx:id="kSlider" blockIncrement="1.0" layoutX="240.0" layoutY="232.0" majorTickUnit="1.0" max="16.0" min="2.0" minorTickCount="1" prefHeight="38.0" prefWidth="328.0" showTickLabels="true" showTickMarks="true" snapToTicks="true" value="4.0" />
-      <Label layoutX="39.0" layoutY="232.0" prefHeight="38.0" prefWidth="194.0" text="K ( for k-way set associative)" />
-      <Label fx:id="kLabel" layoutX="588.0" layoutY="239.0" prefHeight="24.0" prefWidth="66.0" />
-   </children>
-</AnchorPane>
+<?import javafx.scene.control.ComboBox?>
+<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="700.0" minWidth="1200.0" prefHeight="900.0"
+            prefWidth="1400.0" styleClass="root" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/23.0.1"
+            xmlns:fx="http://javafx.com/fxml/1" fx:controller="cache_memory_simulator.Controller">
+
+    <left>
+        <VBox prefWidth="340.0" spacing="15.0" style="-fx-padding: 15; -fx-background-color: #252526;">
+
+            <VBox spacing="10.0" styleClass="panel">
+                <Label styleClass="header-label" text="Configuration"/>
+
+                <VBox spacing="5.0">
+                    <Label text="Main Memory Size" style="-fx-font-weight: bold;"/>
+                    <ComboBox fx:id="memorySizeBox" maxWidth="Infinity" promptText="Select Size"/>
+                </VBox>
+
+                <HBox spacing="10.0">
+                    <VBox HBox.hgrow="ALWAYS">
+                        <Label text="Number of Lines"/>
+                        <TextField fx:id="cacheSizeField" promptText="e.g. 16"/>
+                    </VBox>
+                    <VBox HBox.hgrow="ALWAYS">
+                        <Label text="Words per Line"/>
+                        <TextField fx:id="blockSizeField" promptText="e.g. 4"/>
+                    </VBox>
+                </HBox>
+
+                <Separator/>
+
+                <Label style="-fx-font-weight: bold;" text="Mapping Policy"/>
+                <VBox spacing="5.0">
+                    <RadioButton fx:id="directMappedRadio" mnemonicParsing="false" selected="true" text="Direct-Mapped">
+                        <toggleGroup>
+                            <ToggleGroup fx:id="cacheTypeGroup"/>
+                        </toggleGroup>
+                    </RadioButton>
+                    <RadioButton fx:id="setAssociativeRadio" mnemonicParsing="false" text="Set-Associative"
+                                 toggleGroup="$cacheTypeGroup"/>
+                    <RadioButton fx:id="fullyAssociativeRadio" mnemonicParsing="false" text="Fully-Associative"
+                                 toggleGroup="$cacheTypeGroup"/>
+                </VBox>
+
+                <VBox spacing="2.0">
+                    <HBox alignment="CENTER_LEFT" spacing="10">
+                        <Label text="Associativity (K):"/>
+                        <Label fx:id="kLabel" text="K=4" style="-fx-text-fill: -fx-accent; -fx-font-weight:bold;"/>
+                    </HBox>
+                    <Slider fx:id="kSlider" blockIncrement="1.0" majorTickUnit="2.0" max="16.0" min="2.0"
+                            minorTickCount="1" showTickLabels="true" showTickMarks="true" snapToTicks="true"
+                            value="4.0"/>
+                </VBox>
+
+                <Separator/>
+
+                <HBox spacing="15.0">
+                    <VBox spacing="5.0" HBox.hgrow="ALWAYS">
+                        <Label style="-fx-font-weight: bold;" text="Replacement"/>
+                        <RadioButton fx:id="lruRadio" mnemonicParsing="false" selected="true" text="LRU">
+                            <toggleGroup>
+                                <ToggleGroup fx:id="replacementPoliciesGroup"/>
+                            </toggleGroup>
+                        </RadioButton>
+                        <RadioButton fx:id="fifoRadio" mnemonicParsing="false" text="FIFO"
+                                     toggleGroup="$replacementPoliciesGroup"/>
+                        <RadioButton fx:id="randomRadio" mnemonicParsing="false" text="Random"
+                                     toggleGroup="$replacementPoliciesGroup"/>
+                    </VBox>
+
+                    <VBox spacing="5.0" HBox.hgrow="ALWAYS">
+                        <Label style="-fx-font-weight: bold;" text="Write Policy"/>
+                        <RadioButton fx:id="writeThroughRadio" mnemonicParsing="false" selected="true"
+                                     text="Write-Through">
+                            <toggleGroup>
+                                <ToggleGroup fx:id="writePoliciesGroup"/>
+                            </toggleGroup>
+                        </RadioButton>
+                        <RadioButton fx:id="writeBackRadio" mnemonicParsing="false" text="Write-Back"
+                                     toggleGroup="$writePoliciesGroup"/>
+                    </VBox>
+                </HBox>
+
+                <Button maxWidth="Infinity" mnemonicParsing="false" onAction="#initializeCache" prefHeight="35.0"
+                        style="-fx-font-size: 14px;" text="Initialize Cache"/>
+            </VBox>
+
+            <VBox spacing="10.0" styleClass="panel">
+                <Label styleClass="header-label" text="Operations"/>
+
+                <VBox spacing="5.0">
+                    <Label text="Memory Address"/>
+                    <TextField fx:id="addressField" promptText="Enter integer (e.g. 24)"/>
+                </VBox>
+
+                <VBox spacing="5.0">
+                    <Label text="Data Value"/>
+                    <TextField fx:id="writeDataField" promptText="Any string/number"/>
+                </VBox>
+
+                <HBox spacing="10.0">
+                    <Button maxWidth="Infinity" mnemonicParsing="false" onAction="#handleRead" text="Read"
+                            HBox.hgrow="ALWAYS"/>
+                    <Button maxWidth="Infinity" mnemonicParsing="false" onAction="#handleWrite"
+                            style="-fx-background-color: #d84315;" text="Write" HBox.hgrow="ALWAYS"/>
+                </HBox>
+            </VBox>
+
+            <VBox spacing="5.0" styleClass="panel">
+                <Label styleClass="header-label" text="Statistics"/>
+                <Label fx:id="hitLabel" style="-fx-text-fill: #4ec9b0; -fx-font-weight: bold;" text="Hits: 0"/>
+                <Label fx:id="missLabel" style="-fx-text-fill: #f44747; -fx-font-weight: bold;" text="Misses: 0"/>
+                <Label fx:id="hitRatioLabel" text="Hit Ratio: 0%"/>
+            </VBox>
+
+        </VBox>
+    </left>
+
+    <center>
+        <SplitPane dividerPositions="0.75" orientation="VERTICAL"
+                   style="-fx-background-color: transparent; -fx-padding: 10;">
+
+            <SplitPane dividerPositions="0.65" style="-fx-background-color: transparent;">
+
+                <VBox spacing="5.0">
+                    <Label styleClass="header-label" text="Cache Memory"/>
+                    <TableView fx:id="cacheTable" VBox.vgrow="ALWAYS">
+                        <columnResizePolicy>
+                            <TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/>
+                        </columnResizePolicy>
+                    </TableView>
+                </VBox>
+
+                <VBox spacing="5.0">
+                    <Label styleClass="header-label" text="Main Memory"/>
+                    <TableView fx:id="memoryTable" VBox.vgrow="ALWAYS">
+                        <columnResizePolicy>
+                            <TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/>
+                        </columnResizePolicy>
+                    </TableView>
+                </VBox>
+            </SplitPane>
+
+            <VBox spacing="5.0">
+                <Label styleClass="header-label" text="System Event Log"/>
+                <TextArea fx:id="logArea" editable="false" wrapText="true" VBox.vgrow="ALWAYS"/>
+            </VBox>
+
+        </SplitPane>
+    </center>
+
+</BorderPane>
